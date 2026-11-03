@@ -19,6 +19,7 @@ extension Annotation.Kind {
         case .highlighter: return .highlighter
         case .mosaic: return .mosaic
         case .text: return .text
+        case .number: return .number
         }
     }
 }
@@ -28,7 +29,7 @@ extension Annotation.Kind {
 struct AnnotationToolbar: View {
     @ObservedObject var state: EditorState
 
-    static let width: CGFloat = 136
+    static let width: CGFloat = 160
 
     private struct Entry: Identifiable {
         let tool: AnnotationTool
@@ -40,13 +41,15 @@ struct AnnotationToolbar: View {
     private let rows: [[Entry]] = [
         [Entry(tool: .select, symbol: "cursorarrow", title: L("Select")),
          Entry(tool: .rectangle, symbol: "rectangle", title: L("Rectangle")),
-         Entry(tool: .ellipse, symbol: "circle", title: L("Ellipse"))],
-        [Entry(tool: .line, symbol: "line.diagonal", title: L("Line")),
-         Entry(tool: .arrow, symbol: "arrow.up.right", title: L("Arrow")),
-         Entry(tool: .pen, symbol: "pencil", title: L("Pen"))],
-        [Entry(tool: .highlighter, symbol: "highlighter", title: L("Highlighter")),
-         Entry(tool: .mosaic, symbol: "checkerboard.rectangle", title: L("Mosaic")),
-         Entry(tool: .text, symbol: "textformat", title: L("Text"))],
+         Entry(tool: .ellipse, symbol: "circle", title: L("Ellipse")),
+         Entry(tool: .line, symbol: "line.diagonal", title: L("Line"))],
+        [Entry(tool: .arrow, symbol: "arrow.up.right", title: L("Arrow")),
+         Entry(tool: .pen, symbol: "pencil", title: L("Pen")),
+         Entry(tool: .highlighter, symbol: "highlighter", title: L("Highlighter")),
+         Entry(tool: .mosaic, symbol: "checkerboard.rectangle", title: L("Mosaic"))],
+        [Entry(tool: .text, symbol: "textformat", title: L("Text")),
+         Entry(tool: .number, symbol: "1.circle", title: L("Number")),
+         Entry(tool: .eraser, symbol: "eraser", title: L("Eraser"))],
     ]
 
     /// Whose options are showing: the chosen tool's, or, with Select, those
@@ -74,18 +77,17 @@ struct AnnotationToolbar: View {
                                 state.tool = entry.tool
                             }
                         }
+                        Spacer(minLength: 0)
                     }
                 }
                 HStack(spacing: 4) {
-                    iconButton("eraser", selected: state.tool == .eraser, help: L("Eraser")) {
-                        state.tool = .eraser
-                    }
                     iconButton("arrow.uturn.backward", selected: false, help: L("Undo"), enabled: state.canUndo) {
                         state.onUndo()
                     }
                     iconButton("arrow.uturn.forward", selected: false, help: L("Redo"), enabled: state.canRedo) {
                         state.onRedo()
                     }
+                    Spacer(minLength: 0)
                 }
             }
 
@@ -95,7 +97,7 @@ struct AnnotationToolbar: View {
                     ForEach(0..<3, id: \.self) { index in
                         Button { state.widthIndex = index } label: {
                             Circle().fill(Color.primary).frame(width: dots[index], height: dots[index])
-                                .frame(width: 36, height: 28)
+                                .frame(width: 32, height: 28)
                                 .background(state.widthIndex == index ? Color.accentColor.opacity(0.25) : Color.clear)
                                 .clipShape(RoundedRectangle(cornerRadius: 5))
                                 .contentShape(Rectangle())
@@ -133,7 +135,7 @@ struct AnnotationToolbar: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 15))
-                .frame(width: 36, height: 28)
+                .frame(width: 32, height: 28)
                 .background(selected ? Color.accentColor.opacity(0.25) : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 5))
                 .opacity(enabled ? 1 : 0.35)
@@ -148,7 +150,7 @@ struct AnnotationToolbar: View {
         let color = EditorState.color(hex)
         return Button { state.color = color } label: {
             Rectangle().fill(Color(nsColor: color))
-                .frame(width: 26, height: 22)
+                .frame(width: 32, height: 22)
                 .overlay(Rectangle().stroke(Color.primary.opacity(0.4), lineWidth: 0.5))
                 .overlay(Rectangle().stroke(Color.accentColor, lineWidth: state.color == color ? 2 : 0))
         }

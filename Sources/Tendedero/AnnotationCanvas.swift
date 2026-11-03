@@ -171,6 +171,11 @@ final class AnnotationCanvas: NSView, NSTextFieldDelegate {
             draft = Annotation(kind: .highlighter, points: [point], color: color, width: width)
         case .mosaic:
             draft = Annotation(kind: .mosaic, points: [point, point], color: color, width: width)
+        case .number:
+            // The next number after the highest one on the picture, so undo
+            // and delete leave the count as it was.
+            let next = (document.items.map(\.number).max() ?? 0) + 1
+            draft = Annotation(kind: .number, points: [point], color: color, width: width, number: next)
         case .text:
             // The click that ended one piece of text does not start another.
             if !wasTyping {
@@ -198,6 +203,9 @@ final class AnnotationCanvas: NSView, NSTextFieldDelegate {
         case .pen, .highlighter:
             if let last = draft.points.last, hypot(last.x - point.x, last.y - point.y) < document.unit { return }
             draft.points.append(point)
+        case .number:
+            // Dragging before letting go places the marker.
+            draft.points[0] = point
         default:
             draft.points[1] = point
         }
@@ -215,7 +223,7 @@ final class AnnotationCanvas: NSView, NSTextFieldDelegate {
         guard let finished = draft else { return }
         draft = nil
         // A click on a mark, with a drawing tool, selects it instead.
-        if isClick(finished), let start = finished.points.first,
+        if finished.kind != .number, isClick(finished), let start = finished.points.first,
            let hit = document.topmost(at: start, tolerance: 6 / max(scale, 0.01)) {
             state.tool = .select
             selectMark(document.items[hit].id)
@@ -237,7 +245,7 @@ final class AnnotationCanvas: NSView, NSTextFieldDelegate {
     /// A click without a drag leaves no shape behind, except a dot of pen.
     private func isWorthKeeping(_ a: Annotation) -> Bool {
         switch a.kind {
-        case .pen, .highlighter:
+        case .pen, .highlighter, .number:
             return true
         default:
             guard a.points.count >= 2 else { return false }

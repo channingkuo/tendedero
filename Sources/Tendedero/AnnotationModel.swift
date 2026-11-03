@@ -2,7 +2,7 @@ import AppKit
 import CoreImage
 
 enum AnnotationTool: CaseIterable {
-    case select, rectangle, ellipse, line, arrow, pen, highlighter, mosaic, text, eraser
+    case select, rectangle, ellipse, line, arrow, pen, highlighter, mosaic, text, number, eraser
 }
 
 /// One mark on the picture. Points are in image pixels, y growing downward,
@@ -10,7 +10,7 @@ enum AnnotationTool: CaseIterable {
 struct Annotation {
     let id = UUID()
 
-    enum Kind { case rectangle, ellipse, line, arrow, pen, highlighter, mosaic, text }
+    enum Kind { case rectangle, ellipse, line, arrow, pen, highlighter, mosaic, text, number }
 
     var kind: Kind
     var points: [CGPoint]
@@ -20,6 +20,8 @@ struct Annotation {
     var filled = false
     var text = ""
     var fontSize: CGFloat = 0
+    /// For a numbered marker, the number it shows.
+    var number = 0
 
     mutating func translate(by delta: CGPoint) {
         points = points.map { CGPoint(x: $0.x + delta.x, y: $0.y + delta.y) }
@@ -212,6 +214,24 @@ final class AnnotationDocument {
                 cg.fill(CGRect(origin: .zero, size: pixelSize))
             }
 
+        case .number:
+            guard let center = a.points.first else { return }
+            let radius = Annotation.numberRadius(width: a.width, unit: unit)
+            let disc = NSBezierPath(ovalIn: CGRect(x: center.x - radius, y: center.y - radius,
+                                                   width: radius * 2, height: radius * 2))
+            a.color.setFill()
+            disc.fill()
+            let ink = Annotation.contrastingColor(for: a.color)
+            disc.lineWidth = unit * 1.5
+            ink.setStroke()
+            disc.stroke()
+            let label = String(a.number)
+            let size = radius * (label.count >= 3 ? 0.8 : label.count == 2 ? 1.0 : 1.2)
+            let text = NSAttributedString(string: label, attributes: [
+                .font: NSFont.systemFont(ofSize: size, weight: .bold), .foregroundColor: ink])
+            let box = text.size()
+            text.draw(at: CGPoint(x: center.x - box.width / 2, y: center.y - box.height / 2))
+
         case .text:
             guard let origin = a.points.first, !a.text.isEmpty else { return }
             NSAttributedString(string: a.text, attributes: Annotation.textAttributes(size: a.fontSize, color: a.color))
@@ -283,6 +303,16 @@ extension Annotation {
         CGRect(x: min(a.x, b.x), y: min(a.y, b.y), width: abs(a.x - b.x), height: abs(a.y - b.y))
     }
 
+    /// The radius of a numbered marker, which grows with the chosen width.
+    static func numberRadius(width: CGFloat, unit: CGFloat) -> CGFloat { width * 2.2 + 4 * unit }
+
+    /// Black on a light colour, white on a dark one.
+    static func contrastingColor(for color: NSColor) -> NSColor {
+        guard let c = color.usingColorSpace(.sRGB) else { return .white }
+        let luminance = 0.299 * c.redComponent + 0.587 * c.greenComponent + 0.114 * c.blueComponent
+        return luminance > 0.6 ? .black : .white
+    }
+
     static func textAttributes(size: CGFloat, color: NSColor) -> [NSAttributedString.Key: Any] {
         [.font: NSFont.systemFont(ofSize: size, weight: .medium), .foregroundColor: color]
     }
@@ -322,6 +352,10 @@ extension Annotation {
             guard let origin = points.first else { return .null }
             let size = (text as NSString).size(withAttributes: Annotation.textAttributes(size: fontSize, color: color))
             return CGRect(origin: origin, size: size)
+        case .number:
+            guard let center = points.first else { return .null }
+            let r = Annotation.numberRadius(width: width, unit: unit)
+            return CGRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2)
         default:
             return points.dropFirst().reduce(CGRect(origin: points.first ?? .zero, size: .zero)) {
                 $0.union(CGRect(origin: $1, size: .zero))
@@ -359,6 +393,10 @@ extension Annotation {
         case .mosaic:
             guard points.count >= 2 else { return false }
             return Annotation.rect(points[0], points[1]).insetBy(dx: -tolerance, dy: -tolerance).contains(point)
+        case .number:
+            guard let center = points.first else { return false }
+            return hypot(point.x - center.x, point.y - center.y)
+                <= Annotation.numberRadius(width: width, unit: unit) + tolerance
         case .text:
             return bounds(unit: unit).insetBy(dx: -tolerance, dy: -tolerance).contains(point)
         }
